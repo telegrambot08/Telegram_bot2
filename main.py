@@ -78,7 +78,12 @@ async def search_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     ydl_opts = {
         "quiet": True,
-        "noplaylist": True
+        "noplaylist": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android"]
+            }
+        }
     }
 
     try:
@@ -163,7 +168,12 @@ async def download_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "format": "bestaudio/best",
         "outtmpl": filename,
         "quiet": True,
-        "noplaylist": True
+        "noplaylist": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android"]
+            }
+        }
     }
 
     try:

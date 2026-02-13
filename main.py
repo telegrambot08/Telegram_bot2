@@ -105,7 +105,7 @@ async def download_song(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= MAIN =================
 def main():
-    BOT_TOKEN = os.environ.get("8263979816:AAEEzlekh5mmV-HPVygDwJAda8CyyBXMc5w")
+    BOT_TOKEN = os.environ.get("8263979816:AAG72QHZHbeFeZXqx6ITmTPDjh064DSfgBA")
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))

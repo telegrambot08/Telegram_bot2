@@ -76,37 +76,51 @@ async def search_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_text = update.message.text
     user_id = update.message.from_user.id
 
-    ydl_opts = {"quiet": True}
+    ydl_opts = {
+        "quiet": True,
+        "noplaylist": True
+    }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        results = ydl.extract_info(
-            f"ytsearch10:{query_text}",
-            download=False
-        )["entries"]
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            results = ydl.extract_info(
+                f"ytsearch5:{query_text}",
+                download=False
+            ).get("entries", [])
 
-    search_results[user_id] = results
+        if not results:
+            await update.message.reply_text("❌ Hech narsa topilmadi.")
+            return
 
-    text = "Choose a song:\n\n"
-    keyboard = []
-    row = []
+        search_results[user_id] = results
 
-    for i, video in enumerate(results[:10]):
-        text += f"{i+1}. {video['title']}\n"
-        row.append(
-            InlineKeyboardButton(str(i+1), callback_data=f"select_{i}")
-        )
-        if len(row) == 5:
+        text = "🎵 Topilgan qo‘shiqlar:\n\n"
+        keyboard = []
+        row = []
+
+        for i, video in enumerate(results):
+            text += f"{i+1}. {video['title']}\n"
+            row.append(
+                InlineKeyboardButton(str(i+1), callback_data=f"select_{i}")
+            )
+            if len(row) == 5:
+                keyboard.append(row)
+                row = []
+
+        if row:
             keyboard.append(row)
-            row = []
 
-    keyboard.append([
-        InlineKeyboardButton("❌ Bekor qilish", callback_data="cancel")
-    ])
+        keyboard.append([
+            InlineKeyboardButton("❌ Bekor qilish", callback_data="cancel")
+        ])
 
-    await update.message.reply_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+        await update.message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    except Exception:
+        await update.message.reply_text("❌ Xatolik yuz berdi.")
 
 # ================= SELECT VIDEO =================
 
@@ -143,20 +157,30 @@ async def download_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     index = int(query.data.split("_")[1])
     video = search_results[user_id][index]
 
+    filename = f"{user_id}_song.%(ext)s"
+
     ydl_opts = {
-        "format": "bestaudio",
-        "outtmpl": "song.%(ext)s",
-        "quiet": True
+        "format": "bestaudio/best",
+        "outtmpl": filename,
+        "quiet": True,
+        "noplaylist": True
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([video["webpage_url"]])
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video["webpage_url"]])
 
-    for file in os.listdir():
-        if file.startswith("song"):
-            await query.message.reply_audio(audio=open(file, "rb"))
-            os.remove(file)
-            break
+        for file in os.listdir():
+            if file.startswith(f"{user_id}_song"):
+                await query.message.reply_audio(
+                    audio=open(file, "rb"),
+                    title=video["title"]
+                )
+                os.remove(file)
+                break
+
+    except Exception:
+        await query.message.reply_text("❌ Yuklab bo‘lmadi.")
 
 # ================= MAIN =================
 

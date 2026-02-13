@@ -1,3 +1,5 @@
-Flask==2.1.1
-yt-dlp==2021.12.1
-python-telegram-bot==20.0
+Flask==2.1.1        # Flaskning so'nggi versiyasi
+yt-dlp==2021.12.1   # yt-dlp kutubxonasi
+python-telegram-bot==20.0   # Telegram bot uchun kutubxona
+Werkzeug==2.1.0      # Flask bilan mos versiya
+gunicorn==20.1.0     # Flaskni ishga tushurish uchun gunicorn

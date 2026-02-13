@@ -105,9 +105,9 @@ async def download_song(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= MAIN =================
 def main():
-    BOT_TOKEN = os.environ.get("8263979816:AAG72QHZHbeFeZXqx6ITmTPDjh064DSfgBA")
+    BOT_TOKEN = os.environ.get("8263979816:AAGHp-orHyAJ6WAarHcCrNmU-i0HwhKPabI")
 
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = ApplicationBuilder().token(8263979816:AAGHp-orHyAJ6WAarHcCrNmU-i0HwhKPabI).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(CallbackQueryHandler(download_song, pattern="^song_"))

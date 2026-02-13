@@ -1,116 +1,176 @@
-from flask import Flask
-from threading import Thread
 import os
 import yt_dlp
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters
+)
 
-# ================= KEEP ALIVE =================
-flask_app = Flask("")
+user_lang = {}
+search_results = {}
 
-@flask_app.route("/")
-def home():
-    return "Bot 24/7 ishlayapti"
+# ================= START =================
 
-def run():
-    flask_app.run(host="0.0.0.0", port=8080)
-
-Thread(target=run).start()
-
-# ================= TEXTS =================
-TEXTS = {
-    "uz": {
-        "start": "🇺 Uzbekistan",
-        "welcome": "🎬 Send a video link or 🎵 song name",
-        "error": "❌ No results found",
-        "searching": "🔎 Searching...",
-        "done": "Downloaded via @yourbot",
-    }
-}
-
-# ================= /START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "🇺🇿 Choose your language"
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🇺🇿 O‘zb", callback_data="lang_uz")]
+    keyboard = [
+        [
+            InlineKeyboardButton("🇺🇿 Uzbek", callback_data="lang_uz"),
+            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
+        ]
+    ]
+    await update.message.reply_text(
+        "O‘zingizga qulay tilni tanlang:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# ================= LANGUAGE =================
+
+async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    lang = query.data.split("_")[1]
+    user_lang[query.from_user.id] = lang
+
+    text = {
+        "uz": "🎬 Video havolasini yoki musiqa nomini yozing:",
+        "ru": "🎬 Отправьте ссылку на видео или название песни:",
+        "en": "🎬 Send video link or song name:"
+    }
+
+    keyboard = [
+        [
+            InlineKeyboardButton("ℹ️ Haqida", callback_data="about"),
+            InlineKeyboardButton("❌ Bekor qilish", callback_data="cancel")
+        ]
+    ]
+
+    await query.edit_message_text(
+        text[lang],
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# ================= ABOUT & CANCEL =================
+
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "about":
+        await query.edit_message_text("🎵 Bu bot YouTube dan musiqa va video yuklaydi.")
+    elif query.data == "cancel":
+        await query.edit_message_text("❌ Bekor qilindi.")
+
+# ================= SEARCH =================
+
+async def search_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query_text = update.message.text
+    user_id = update.message.from_user.id
+
+    ydl_opts = {"quiet": True}
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        results = ydl.extract_info(
+            f"ytsearch10:{query_text}",
+            download=False
+        )["entries"]
+
+    search_results[user_id] = results
+
+    text = "Choose a song:\n\n"
+    keyboard = []
+    row = []
+
+    for i, video in enumerate(results[:10]):
+        text += f"{i+1}. {video['title']}\n"
+        row.append(
+            InlineKeyboardButton(str(i+1), callback_data=f"select_{i}")
+        )
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
+
+    keyboard.append([
+        InlineKeyboardButton("❌ Bekor qilish", callback_data="cancel")
     ])
-    await update.message.reply_text(text, reply_markup=kb)
 
-# ================= MAIN HANDLER =================
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    lang = context.user_data.get("lang", "uz")
-    await update.message.reply_text(TEXTS[lang]["searching"])
+    await update.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-    ydl_opts = {"quiet": True, "extract_flat": True}
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(f"ytsearch10:{text}", download=False)
-    except:
-        await update.message.reply_text(TEXTS[lang]["error"])
-        return
+# ================= SELECT VIDEO =================
 
-    entries = result.get("entries", [])[:10]
-    if not entries:
-        await update.message.reply_text(TEXTS[lang]["error"])
-        return
+async def select_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    context.user_data["songs"] = entries
+    user_id = query.from_user.id
+    index = int(query.data.split("_")[1])
+    video = search_results[user_id][index]
 
-    msg = "Choose a song\n\n"
-    buttons = []
+    url = video["webpage_url"]
 
-    for i, e in enumerate(entries):
-        msg += f"{i+1}. {e.get('title', 'Unknown')}\n"
-        buttons.append(InlineKeyboardButton(str(i+1), callback_data=f"song_{i}"))
+    keyboard = [
+        [
+            InlineKeyboardButton("🎵 Musiqani yuklab olish", callback_data=f"audio_{index}"),
+            InlineKeyboardButton("➕ Guruhga qo‘shish", url="https://t.me/YOUR_BOT_USERNAME?startgroup=true")
+        ]
+    ]
 
-    keyboard = [buttons[i:i+5] for i in range(0, len(buttons), 5)]
-    await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.message.reply_video(
+        video=url,
+        caption=video["title"],
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-# ================= SONG DOWNLOAD =================
-async def download_song(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
+# ================= DOWNLOAD AUDIO =================
 
-    lang = context.user_data.get("lang", "uz")
-    index = int(q.data.split("_")[1])
-    songs = context.user_data.get("songs")
+async def download_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    if not songs or index >= len(songs):
-        await q.message.reply_text(TEXTS[lang]["error"])
-        return
-
-    song = songs[index]
-    url = song["url"]
-
-    await q.message.reply_text(TEXTS[lang]["searching"])
+    user_id = query.from_user.id
+    index = int(query.data.split("_")[1])
+    video = search_results[user_id][index]
 
     ydl_opts = {
         "format": "bestaudio",
-        "outtmpl": "song_%(id)s.%(ext)s",
-        "quiet": True,
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "128",
-        }],
+        "outtmpl": "song.%(ext)s",
+        "quiet": True
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = f"song_{info['id']}.mp3"
+        ydl.download([video["webpage_url"]])
 
-    await q.message.reply_audio(audio=open(filename, "rb"), title=info.get("title"))
-    os.remove(filename)
+    for file in os.listdir():
+        if file.startswith("song"):
+            await query.message.reply_audio(audio=open(file, "rb"))
+            os.remove(file)
+            break
 
 # ================= MAIN =================
-def main():
-    BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+def main():
+    app = ApplicationBuilder().token(
+        os.environ.get("BOT_TOKEN")
+    ).build()
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    app.add_handler(CallbackQueryHandler(download_song, pattern="^song_"))
+    app.add_handler(CallbackQueryHandler(set_language, pattern="lang_"))
+    app.add_handler(CallbackQueryHandler(buttons, pattern="about|cancel"))
+    app.add_handler(CallbackQueryHandler(select_video, pattern="select_"))
+    app.add_handler(CallbackQueryHandler(download_audio, pattern="audio_"))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search_music))
 
     app.run_polling()
 
